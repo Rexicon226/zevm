@@ -99,8 +99,11 @@ pub extern fn LLVMBuildArrayAlloca(LLVMBuilderRef, Ty: LLVMTypeRef, Val: LLVMVal
 pub extern fn LLVMBuildAlloca(LLVMBuilderRef, Ty: LLVMTypeRef, Name: [*:0]const u8) LLVMValueRef;
 pub extern fn LLVMBuildStore(LLVMBuilderRef, Val: LLVMValueRef, Ptr: LLVMValueRef) LLVMValueRef;
 pub extern fn LLVMBuildLoad2(LLVMBuilderRef, Ty: LLVMTypeRef, PointerVal: LLVMValueRef, Name: [*:0]const u8) LLVMValueRef;
+
 pub extern fn LLVMBuildAdd(LLVMBuilderRef, LHS: LLVMValueRef, RHS: LLVMValueRef, Name: [*:0]const u8) LLVMValueRef;
 pub extern fn LLVMBuildSub(LLVMBuilderRef, LHS: LLVMValueRef, RHS: LLVMValueRef, Name: [*:0]const u8) LLVMValueRef;
+pub extern fn LLVMBuildMul(LLVMBuilderRef, LHS: LLVMValueRef, RHS: LLVMValueRef, Name: [*:0]const u8) LLVMValueRef;
+
 pub extern fn LLVMBuildRet(LLVMBuilderRef, V: LLVMValueRef) LLVMValueRef;
 pub extern fn LLVMBuildCall2(LLVMBuilderRef, LLVMTypeRef, Fn: LLVMValueRef, Args: [*c]LLVMValueRef, NumArgs: c_uint, Name: [*:0]const u8) LLVMValueRef;
 pub extern fn LLVMBuildInBoundsGEP2(B: LLVMBuilderRef, Ty: LLVMTypeRef, Pointer: LLVMValueRef, Indices: [*c]LLVMValueRef, NumIndices: c_uint, Name: [*:0]const u8) LLVMValueRef;

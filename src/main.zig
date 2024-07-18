@@ -6,6 +6,7 @@ const STACK_SIZE = 1024;
 const OpCode = enum(u8) {
     STOP = 0x00,
     ADD = 0x01,
+    MUL = 0x02,
     PUSH1 = 0x60,
     _,
 
@@ -20,12 +21,19 @@ const OpCode = enum(u8) {
 };
 
 pub fn main() !void {
-    const args = std.os.argv;
-    if (args.len != 2) @panic("evm [input.hex]");
+    // const args = std.os.argv;
+    // if (args.len != 2) @panic("evm [input.hex]");
 
-    const bin_path = std.mem.span(args[1]);
-    const bytes = try std.fs.cwd().readFileAlloc(std.heap.c_allocator, bin_path, 1 * 1024);
-    defer std.heap.c_allocator.free(bytes);
+    // const bin_path = std.mem.span(args[1]);
+    // const bytes = try std.fs.cwd().readFileAlloc(std.heap.c_allocator, bin_path, 1 * 1024);
+    // defer std.heap.c_allocator.free(bytes);
+
+    const bytes: []const u8 = &[_]u8{
+        0x60, 0x02, // push 2
+        0x60, 0x04, // push 4
+        0x02, // mul
+        0x00, // stop
+    };
 
     initTarget();
 
@@ -34,7 +42,7 @@ pub fn main() !void {
     createIR(bytes, mod);
 
     // uncomment to dump the LLVM IR
-    // b.LLVMDumpModule(mod);
+    b.LLVMDumpModule(mod);
 
     var ee: b.LLVMExecutionEngineRef = undefined;
     if (b.LLVMCreateExecutionEngineForModule(&ee, mod, null) == 1) {
@@ -191,16 +199,24 @@ fn createIR(bytes: []const u8, mod: b.LLVMModuleRef) void {
     while (pc < bytes.len) : (pc += 1) {
         const op: OpCode = @enumFromInt(bytes[pc]);
         switch (op) {
-            .STOP => { // STOP
+            .STOP => {
                 break;
             },
-            .ADD => { // ADD
+            .ADD,
+            .MUL,
+            => {
                 const rhs = pop(builder, mod, &.{ stack_array, stack_pointer });
                 const lhs = pop(builder, mod, &.{ stack_array, stack_pointer });
-                const sum = b.LLVMBuildAdd(builder, lhs, rhs, "add");
-                _ = push(builder, mod, &.{ stack_array, stack_pointer, sum });
+
+                const result = switch (op) {
+                    .ADD => b.LLVMBuildAdd(builder, lhs, rhs, "sum"),
+                    .MUL => b.LLVMBuildMul(builder, lhs, rhs, "product"),
+                    else => unreachable,
+                };
+
+                _ = push(builder, mod, &.{ stack_array, stack_pointer, result });
             },
-            .PUSH1 => { // PUSH1
+            .PUSH1 => {
                 pc += 1;
                 const value = bytes[pc];
                 _ = push(
