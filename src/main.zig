@@ -7,13 +7,20 @@ const OpCode = enum(u8) {
     STOP = 0x00,
     ADD = 0x01,
     MUL = 0x02,
+    SUB = 0x03,
     PUSH1 = 0x60,
-    _,
+};
 
-    fn returnType(comptime op: OpCode) type {
+const Op = union(OpCode) {
+    STOP,
+    ADD,
+    MUL,
+    SUB,
+    PUSH1: u8,
+
+    fn returnType(comptime op: Op) type {
         return switch (op) {
-            .STOP => void,
-            .ADD => u256,
+            .STOP > void, .ADD => u256,
             .PUSH1 => void,
             else => @compileError("TODO: returnType " ++ @tagName(op)),
         };
@@ -28,18 +35,39 @@ pub fn main() !void {
     // const bytes = try std.fs.cwd().readFileAlloc(std.heap.c_allocator, bin_path, 1 * 1024);
     // defer std.heap.c_allocator.free(bytes);
 
-    const bytes: []const u8 = &[_]u8{
-        0x60, 0x02, // push 2
-        0x60, 0x04, // push 4
-        0x02, // mul
-        0x00, // stop
+    const bytes = &[_]u8{
+        0x60, 0x02,
+        0x00,
     };
+
+    var ops: [2400]Op = undefined;
+    var length: usize = 0;
+
+    var i: usize = 0;
+    while (i < bytes.len) : (i += 1) {
+        var code: Op = undefined;
+        const op: OpCode = @enumFromInt(bytes[i]);
+        switch (op) {
+            .PUSH1 => {
+                i += 1;
+                code = .{ .PUSH1 = bytes[i] };
+            },
+            inline else => |o| code = o,
+        }
+        ops[length] = code;
+        length += 1;
+    }
+
+    std.debug.print("input ops:\n", .{});
+    for (ops[0..length]) |op| {
+        std.debug.print("{s}\n", .{@tagName(op)});
+    }
 
     initTarget();
 
     const context = b.LLVMContextCreate();
     const mod = b.LLVMModuleCreateWithNameInContext("EVM", context);
-    createIR(bytes, mod);
+    createIR(ops[0..length], mod);
 
     // uncomment to dump the LLVM IR
     b.LLVMDumpModule(mod);
@@ -58,7 +86,7 @@ pub fn main() !void {
         var result: u256 = 0;
         const main_func: *const fn (*u256) callconv(.C) void = @ptrFromInt(address);
         main_func(&result);
-        std.debug.print("Result: {}\n", .{result});
+        std.debug.print("Result: {d}\n", .{result});
     }
 }
 
@@ -176,7 +204,7 @@ fn push(
     return callFunction("push", 3, true)(builder, mod, in_args);
 }
 
-fn createIR(bytes: []const u8, mod: b.LLVMModuleRef) void {
+fn createIR(bytes: []const Op, mod: b.LLVMModuleRef) void {
     const builder = b.LLVMCreateBuilder();
     genPop(builder, mod);
     genPush(builder, mod);
@@ -195,9 +223,7 @@ fn createIR(bytes: []const u8, mod: b.LLVMModuleRef) void {
     const stack_pointer = b.LLVMBuildAlloca(builder, b.LLVMInt32Type(), "sp");
     _ = b.LLVMBuildStore(builder, b.LLVMConstInt(b.LLVMInt32Type(), 0, 0), stack_pointer);
 
-    var pc: u32 = 0;
-    while (pc < bytes.len) : (pc += 1) {
-        const op: OpCode = @enumFromInt(bytes[pc]);
+    for (bytes) |op| {
         switch (op) {
             .STOP => {
                 break;
@@ -216,9 +242,7 @@ fn createIR(bytes: []const u8, mod: b.LLVMModuleRef) void {
 
                 _ = push(builder, mod, &.{ stack_array, stack_pointer, result });
             },
-            .PUSH1 => {
-                pc += 1;
-                const value = bytes[pc];
+            .PUSH1 => |value| {
                 _ = push(
                     builder,
                     mod,
@@ -229,7 +253,7 @@ fn createIR(bytes: []const u8, mod: b.LLVMModuleRef) void {
                     },
                 );
             },
-            else => std.debug.panic("TODO: byte 0x{x:0>2}", .{bytes[pc]}),
+            else => std.debug.panic("TODO: {s}", .{@tagName(op)}),
         }
     }
 
