@@ -4,6 +4,19 @@ pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
 
+    const assembler = b.addExecutable(.{
+        .name = "evasm",
+        .root_source_file = b.path("src/assembler.zig"),
+        .target = target,
+        .optimize = optimize,
+    });
+
+    b.installArtifact(assembler);
+
+    const generate_hex = b.addRunArtifact(assembler);
+    generate_hex.addFileArg(b.path("op.zon"));
+    const hex_file = generate_hex.addOutputFileArg("out.hex");
+
     const evm = b.addExecutable(.{
         .name = "evm",
         .root_source_file = b.path("src/main.zig"),
@@ -24,5 +37,5 @@ pub fn build(b: *std.Build) void {
     const run = b.addRunArtifact(evm);
     run_step.dependOn(&run.step);
 
-    if (b.args) |args| run.addArgs(args);
+    run.addFileArg(hex_file);
 }

@@ -2,8 +2,9 @@ const std = @import("std");
 const b = @import("bindings.zig");
 
 const STACK_SIZE = 1024;
+const MAX_INSTRUCTION_BYTES = 24576;
 
-const OpCode = enum(u8) {
+pub const OpCode = enum(u8) {
     STOP = 0x00,
     ADD = 0x01,
     MUL = 0x02,
@@ -11,7 +12,7 @@ const OpCode = enum(u8) {
     PUSH1 = 0x60,
 };
 
-const Op = union(OpCode) {
+pub const Op = union(OpCode) {
     STOP,
     ADD,
     MUL,
@@ -28,19 +29,14 @@ const Op = union(OpCode) {
 };
 
 pub fn main() !void {
-    // const args = std.os.argv;
-    // if (args.len != 2) @panic("evm [input.hex]");
+    const args = std.os.argv;
+    if (args.len != 2) @panic("evm [input.hex]");
 
-    // const bin_path = std.mem.span(args[1]);
-    // const bytes = try std.fs.cwd().readFileAlloc(std.heap.c_allocator, bin_path, 1 * 1024);
-    // defer std.heap.c_allocator.free(bytes);
+    const bin_path = std.mem.span(args[1]);
+    const bytes = try std.fs.cwd().readFileAlloc(std.heap.c_allocator, bin_path, 1 * 1024);
+    defer std.heap.c_allocator.free(bytes);
 
-    const bytes = &[_]u8{
-        0x60, 0x02,
-        0x00,
-    };
-
-    var ops: [2400]Op = undefined;
+    var ops: [MAX_INSTRUCTION_BYTES]Op = undefined;
     var length: usize = 0;
 
     var i: usize = 0;
@@ -58,11 +54,6 @@ pub fn main() !void {
         length += 1;
     }
 
-    std.debug.print("input ops:\n", .{});
-    for (ops[0..length]) |op| {
-        std.debug.print("{s}\n", .{@tagName(op)});
-    }
-
     initTarget();
 
     const context = b.LLVMContextCreate();
@@ -70,7 +61,7 @@ pub fn main() !void {
     createIR(ops[0..length], mod);
 
     // uncomment to dump the LLVM IR
-    b.LLVMDumpModule(mod);
+    // b.LLVMDumpModule(mod);
 
     var ee: b.LLVMExecutionEngineRef = undefined;
     if (b.LLVMCreateExecutionEngineForModule(&ee, mod, null) == 1) {
@@ -86,7 +77,7 @@ pub fn main() !void {
         var result: u256 = 0;
         const main_func: *const fn (*u256) callconv(.C) void = @ptrFromInt(address);
         main_func(&result);
-        std.debug.print("Result: {d}\n", .{result});
+        std.debug.print("{d}\n", .{result});
     }
 }
 
